@@ -65,9 +65,16 @@ LRESULT CALLBACK HandleWndProc(HWND hwnd, UINT uMsg, WPARAM wParam, LPARAM lPara
 			}
 			case WM_SIZE:
 			{
+                // Store size of main window (low word is width, high word is height)
+                gMainWindowSize = lParam;
+                
 				// Using DefWindowProcW here because allowing the VB code to run for this causes reset of title for some reason
 				return DefWindowProcW(hwnd, uMsg, wParam, lParam);
 			}
+            /*case WM_WINDOWPOSCHANGED:
+            {
+                return DefWindowProcW(hwnd, uMsg, wParam, lParam);
+            }*/
 			case WM_GETMINMAXINFO:
 			{
 				RECT rc;
@@ -304,13 +311,13 @@ LRESULT CALLBACK MsgHOOKProc(int nCode, WPARAM wParam, LPARAM lParam)
             }
         }
         break;
-    case WM_SIZE:
+    /*case WM_SIZE:
         if ((gMainWindowHwnd != NULL) && (gMainWindowHwnd == wData->hwnd))
         {
             // Store size of main window (low word is width, high word is height)
             gMainWindowSize = wData->lParam;
         }
-        break;
+        break;*/
     default:
         break;
     }
