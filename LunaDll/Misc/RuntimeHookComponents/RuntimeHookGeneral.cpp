@@ -58,6 +58,16 @@ LRESULT CALLBACK HandleWndProc(HWND hwnd, UINT uMsg, WPARAM wParam, LPARAM lPara
 	{
 		switch (uMsg)
 		{
+			case WM_SETTEXT:
+			{
+				// Calling DefWindowProcW here is a hack to allow unicode window titles, by redirecting to the unicode DefWindowProcW
+				return DefWindowProcW(hwnd, uMsg, wParam, lParam);
+			}
+			case WM_SIZE:
+			{
+				// Using DefWindowProcW here because allowing the VB code to run for this causes reset of title for some reason
+				return DefWindowProcW(hwnd, uMsg, wParam, lParam);
+			}
 			case WM_GETMINMAXINFO:
 			{
 				RECT rc;
@@ -216,7 +226,10 @@ LRESULT CALLBACK HandleWndProc(HWND hwnd, UINT uMsg, WPARAM wParam, LPARAM lPara
 		}
 	}
 
-	return CallWindowProc(gMainWindowProc, hwnd, uMsg, wParam, lParam);
+	// (Note, CallWindowProcW does Unicode to ASCII conversion for
+	//  messages that get passed through to it, since the original
+	//  handler is ASCII)
+	return CallWindowProcW(gMainWindowProc, hwnd, uMsg, wParam, lParam);
 }
 
 LRESULT CALLBACK MsgHOOKProc(int nCode, WPARAM wParam, LPARAM lParam)
@@ -247,15 +260,18 @@ LRESULT CALLBACK MsgHOOKProc(int nCode, WPARAM wParam, LPARAM lParam)
     case WM_CREATE:
         if (wData->lParam != NULL)
         {
-            CREATESTRUCTA* createData = reinterpret_cast<CREATESTRUCTA*>(wData->lParam);
-            LPCSTR winName = createData->lpszName;
-            if ((gMainWindowHwnd == NULL) && (winName != NULL) && (strncmp("- Version 1.2.2 -", &winName[20], 17) == 0))
+            CREATESTRUCTW* createData = reinterpret_cast<CREATESTRUCTW*>(wData->lParam);
+            LPCWSTR winName = createData->lpszName;
+            if ((gMainWindowHwnd == NULL) && (winName != NULL) && (memcmp(L"- Version 1.2.2 -", &winName[20], 17*2) == 0))
             {
                 // Store main window handle
                 gMainWindowHwnd = wData->hwnd;
 
 				// Override window proc
-				gMainWindowProc = (WNDPROC)SetWindowLongPtrA(gMainWindowHwnd, GWLP_WNDPROC, (LONG_PTR)HandleWndProc);
+				gMainWindowProc = (WNDPROC)SetWindowLongPtrW(gMainWindowHwnd, GWLP_WNDPROC, (LONG_PTR)HandleWndProc);
+
+				// Set initial window title right away, since we blocked what was causing VB to set it
+				SetWindowTextW(gMainWindowHwnd, GM_GAMETITLE_1.ptr);
             }
         }
         break;
@@ -592,7 +608,7 @@ void TrySkipPatch()
     /************************************************************************/
     /* Set Hook                                                             */
     /************************************************************************/
-    HookWnd = SetWindowsHookExA(WH_CALLWNDPROC, MsgHOOKProc, (HINSTANCE)NULL, GetCurrentThreadId());
+    HookWnd = SetWindowsHookExW(WH_CALLWNDPROC, MsgHOOKProc, (HINSTANCE)NULL, GetCurrentThreadId());
     if (!HookWnd){
         DWORD errCode = GetLastError();
         std::string errCmd = "Failed to Hook";
@@ -1295,4 +1311,15 @@ void TrySkipPatch()
     *(void**)0x00401124 = (void*)&vbaR4VarHook;
     rtcMsgBox = (int(__stdcall *)(VARIANTARG*, DWORD, DWORD, DWORD, DWORD))(*(void**)0x004010A8);
     *(void**)0x004010A8 = (void*)&rtcMsgBoxHook;
+
+    // Fix intro level not loading when the save slot number is greater than 3.
+    PATCH(0x8CDE97)
+        .PUSH_IMM32(0x8CDEC7)
+        .JMP(saveFileExists)
+        .Apply();
+
+    PATCH(0x8CDEC7)
+        .bytes(0x84, 0xC0) // test al, al
+        .bytes(0x74, 0x35) // jz 0x8CDF00
+        .Apply();
 }
