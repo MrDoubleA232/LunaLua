@@ -3518,6 +3518,383 @@ void __stdcall runtimeHookPlayerKill(short* playerIdxPtr)
     }
 }
 
+static void __stdcall runtimeHookSetupCameraSizesInternal()
+{
+    // Reimplementation of https://github.com/smbx/smbx-legacy-source/blob/master/modGraphics.bas#L2693
+    // Now with customisable screen size
+    SMBX_CameraInfo* camera1 = SMBX_CameraInfo::Get(1);
+    SMBX_CameraInfo* camera2 = SMBX_CameraInfo::Get(2);
+
+    double screenWidth = (double)gMainFramebufferWidth;
+    double screenHeight = (double)gMainFramebufferHeight;
+    double halfScreenWidth = screenWidth/2;
+    double halfScreenHeight = screenHeight/2;
+
+    switch (GM_CAMERA_TYPE)
+    {
+        case 0: // Single player
+        case 2: // Follow all players
+        case 3: // Follow all players, but keep them all on screen
+        case 5: // Multiplayer dynamic screen (initialisation only)
+        case 7: // Credits mode
+        case 8: // Old online multiplayer
+            camera1->width = screenWidth;
+            camera1->height = screenHeight;
+            camera1->x = 0;
+            camera1->y = 0;
+
+            camera2->visibleFlag = 0;
+            break;
+        case 1: // Split screen vertical
+            camera1->width = screenWidth;
+            camera1->height = halfScreenHeight;
+            camera1->x = 0;
+            camera1->y = 0;
+
+            camera2->width = screenWidth;
+            camera2->height = halfScreenHeight;
+            camera2->x = 0;
+            camera2->y = halfScreenHeight;
+            break;
+        case 4: // Split screen horizontal
+            camera1->width = halfScreenWidth;
+            camera1->height = screenHeight;
+            camera1->x = 0;
+            camera1->y = 0;
+
+            camera2->width = halfScreenWidth;
+            camera2->height = screenHeight;
+            camera2->x = halfScreenWidth;
+            camera2->y = 0;
+            break;
+        case 6: // supermario2 cheat
+            camera1->width = screenWidth;
+            camera1->height = screenHeight;
+            camera1->x = 0;
+            camera1->y = 0;
+            
+            camera2->width = screenWidth;
+            camera2->height = screenHeight;
+            camera2->x = 0;
+            camera2->y = 0;
+            break;
+    }
+}
+
+void __stdcall runtimeHookSetupCameraSizes()
+{
+    __asm {
+        call runtimeHookSetupCameraSizesInternal
+        ret
+    }
+}
+
+
+double getPlayerCameraVerticalFocus(PlayerMOB* player)
+{
+    if (player->MountType == 2)
+        return player->momentum.y;
+    else
+        return player->momentum.y + player->momentum.height;
+}
+
+int findSplitScreenType(SMBX_CameraInfo* camera1, SMBX_CameraInfo* camera2, PlayerMOB* player1, PlayerMOB* player2)
+{
+    if (player1->CurrentSection != player2->CurrentSection)
+        // Players are in different sections
+        return 6;
+
+    Bounds sectBoundary = GM_LVL_BOUNDARIES[player1->CurrentSection];
+
+    double screenWidth = (double)gMainFramebufferWidth;
+    double screenHeight = (double)gMainFramebufferHeight;
+    double screenWidthPortion = screenWidth*0.75;
+    double screenHeightPortion = screenHeight*0.75;
+
+    double cameraX1 = SMBX_CameraInfo::getCameraX(1);
+    double cameraY1 = SMBX_CameraInfo::getCameraY(1);
+    double cameraX2 = SMBX_CameraInfo::getCameraX(2);
+    double cameraY2 = SMBX_CameraInfo::getCameraY(2);
+
+    double playerX1 = player1->momentum.x + player1->momentum.width/2;
+    double playerY1 = getPlayerCameraVerticalFocus(player1);
+    double playerX2 = player2->momentum.x + player2->momentum.width/2;
+    double playerY2 = getPlayerCameraVerticalFocus(player2);
+    
+    if (sectBoundary.right - sectBoundary.left > screenWidth)
+    {
+        if (playerX1 < sectBoundary.right - screenWidthPortion && playerX2 - cameraX1 >= screenWidthPortion)
+            return 1;
+        
+        if (playerX2 < sectBoundary.right - screenWidthPortion)
+        {
+            if ((camera2->visibleFlag == 0 && playerX1 - cameraX1 >= screenWidthPortion) || (camera2->visibleFlag != 0 && playerX1 - cameraX2 >= screenWidthPortion))
+                return 2;
+        }
+    }
+
+    if (sectBoundary.bottom - sectBoundary.top > screenHeight)
+    {
+        if (playerY2 < sectBoundary.bottom - screenHeightPortion)
+        {
+            if ((camera2->visibleFlag == 0 && playerY1 - cameraY1 >= screenHeightPortion) || (camera2->visibleFlag != 0 && playerY1 - cameraY2 >= screenHeightPortion))
+                return 3;
+        }
+
+        if (playerY1 < sectBoundary.bottom - screenHeightPortion)
+        {
+            if ((camera2->visibleFlag == 0 && playerY2 - cameraY1 >= screenHeightPortion) || (camera2->visibleFlag != 0 && playerY2 - cameraY1 >= screenHeightPortion))
+            {
+                return 4;
+            }
+        }
+    }
+
+    return 5;
+}
+
+void setAverageCameraPosition()
+{
+    // Average all player's positions
+    double cameraX = 0;
+    double cameraY = 0;
+    int playerCount = 0;
+    
+    for (int playerIdx = 1; playerIdx <= GM_PLAYERS_COUNT; playerIdx++)
+    {
+        PlayerMOB* player = Player::Get(playerIdx);
+
+        if (player->DeathState == 0 && player->ForcedAnimationState != 6)
+        {
+            cameraX += (player->momentum.x + player->momentum.width*0.5);
+            cameraY += getPlayerCameraVerticalFocus(player);
+            playerCount++;
+        }
+    }
+
+    if (playerCount > 0)
+    {
+        Bounds sectBoundary = GM_LVL_BOUNDARIES[Player::Get(1)->CurrentSection];
+        double screenWidth = (double)gMainFramebufferWidth;
+        double screenHeight = (double)gMainFramebufferHeight;
+
+        cameraX = cameraX/playerCount + screenWidth/2;
+        cameraY = cameraY/playerCount + screenHeight/2;
+
+        if (cameraX > sectBoundary.right - screenWidth)
+            cameraX = sectBoundary.right - screenWidth;
+        else if (cameraX > sectBoundary.left)
+            cameraX = sectBoundary.left;
+
+        if (cameraY > sectBoundary.bottom - screenHeight)
+            cameraY = sectBoundary.bottom - screenHeight;
+        else if (cameraY > sectBoundary.top)
+            cameraY = sectBoundary.top;
+    
+        SMBX_CameraInfo::setCameraX(1, cameraX);
+        SMBX_CameraInfo::setCameraY(1, cameraY);
+    }
+}
+
+void setupSplitScreenType()
+{
+    SMBX_CameraInfo* camera1 = SMBX_CameraInfo::Get(1);
+    SMBX_CameraInfo* camera2 = SMBX_CameraInfo::Get(2);
+    PlayerMOB* player1 = Player::Get(1);
+    PlayerMOB* player2 = Player::Get(2);
+
+    int type = findSplitScreenType(camera1, camera2, player1, player2);
+
+    double screenWidth = (double)gMainFramebufferWidth;
+    double screenHeight = (double)gMainFramebufferHeight;
+    double halfScreenWidth = screenWidth/2;
+    double halfScreenHeight = screenHeight/2;
+    double quarterScreenWidth = screenWidth/4;
+    double quarterScreenHeight = screenHeight/4;
+
+
+    switch (type)
+    {
+        case 1:
+        case 2:
+            camera1->width = halfScreenWidth;
+            camera1->height = screenHeight;
+            camera1->y = 0;
+            camera2->width = halfScreenWidth;
+            camera2->height = screenHeight;
+            camera2->y = 0;
+
+            setAverageCameraPosition();
+
+            for (int cameraIdx = 1; cameraIdx <= 2; cameraIdx++)
+            {
+                SMBX_CameraInfo* camera = SMBX_CameraInfo::Get(cameraIdx);
+                PlayerMOB* player = Player::Get(cameraIdx);
+
+                camera->offsetDelay = 200;
+                camera->offsetX = 0;
+                camera->offsetY = SMBX_CameraInfo::getCameraY(1) + halfScreenHeight - getPlayerCameraVerticalFocus(player);
+            }
+
+            camera2->visibleFlag = -1;
+
+            break;
+        case 3:
+        case 4:
+            camera1->width = screenWidth;
+            camera1->height = halfScreenHeight;
+            camera1->x = 0;
+            camera2->width = screenWidth;
+            camera2->height = halfScreenHeight;
+            camera2->x = 0;
+
+            setAverageCameraPosition();
+
+            for (int cameraIdx = 1; cameraIdx <= 2; cameraIdx++)
+            {
+                SMBX_CameraInfo* camera = SMBX_CameraInfo::Get(cameraIdx);
+                PlayerMOB* player = Player::Get(cameraIdx);
+
+                camera->offsetDelay = 200;
+                camera->offsetX = SMBX_CameraInfo::getCameraX(1) + halfScreenWidth - (player->momentum.x + player->momentum.width*0.5);
+                camera->offsetY = 0;
+            }
+
+            camera2->visibleFlag = -1;
+            break;
+    }
+
+    switch (type)
+    {
+        case 1:
+            camera1->x = 0;
+            camera2->x = halfScreenWidth;
+            break;
+        case 2:
+            camera1->x = halfScreenWidth;
+            camera2->x = 0;
+            break;
+        case 3:
+            camera1->y = 0;
+            camera2->y = screenWidth;
+            break;
+        case 4:
+            camera1->y = screenWidth;
+            camera2->y = 0;
+            break;
+        case 5:
+            if (camera2->visibleFlag == 0)
+            {
+                GM_SPLITSCREEN_TYPE = type; // force no sound effect
+                break;
+            }
+
+            camera1->height = screenHeight;
+            camera1->width = screenWidth;
+            camera1->x = 0;
+            camera1->y = 0;
+            camera1->offsetX = 0;
+            camera1->offsetY = 0;
+
+            camera2->offsetX = 0;
+            camera2->offsetY = 0;
+            camera2->visibleFlag = 0;
+
+            break;
+        case 6:
+            camera1->width = screenWidth;
+            camera1->height = halfScreenHeight;
+            camera1->x = 0;
+            camera1->y = 0;
+            camera1->offsetX = 0;
+            camera1->offsetY = 0;
+            camera1->visibleFlag = -1;
+
+            camera2->width = screenWidth;
+            camera2->height = halfScreenHeight;
+            camera2->x = 0;
+            camera2->y = halfScreenHeight;
+            camera2->offsetX = 0;
+            camera2->offsetY = 0;
+            camera2->visibleFlag = -1;
+
+            setAverageCameraPosition();
+
+            GM_SPLITSCREEN_TYPE = type; // force no sound effect
+            break;
+    }
+
+
+    for (int cameraIdx = 1; cameraIdx <= 2; cameraIdx++)
+    {
+        SMBX_CameraInfo* camera = SMBX_CameraInfo::Get(cameraIdx);
+
+        if (camera->offsetX > quarterScreenWidth) camera->offsetX = quarterScreenWidth;
+        if (camera->offsetX < -quarterScreenWidth) camera->offsetX = -quarterScreenWidth;
+        if (camera->offsetY > quarterScreenHeight) camera->offsetY = quarterScreenHeight;
+        if (camera->offsetY < -quarterScreenHeight) camera->offsetY = -quarterScreenHeight;
+    }
+
+
+    if (GM_SPLITSCREEN_TYPE != type)
+    {
+        short cameraSoundID = 13;
+        native_playSFX(&cameraSoundID);
+        
+        GM_SPLITSCREEN_TYPE = type;
+    }
+}
+
+static void __stdcall runtimeHookUpdateSplitScreenInternal()
+{
+    // Reimplementation of https://github.com/smbx/smbx-legacy-source/blob/master/modGraphics.bas#L2761
+    // Now with customisable screen size
+    setAverageCameraPosition();
+    
+    bool everyPlayerDead = true;
+
+    for (int playerIdx = 1; playerIdx <= GM_PLAYERS_COUNT; playerIdx++)
+    {
+        PlayerMOB* player = Player::Get(playerIdx);
+
+        if (player->ForcedAnimationState == 6)
+            return;
+        else if (player->DeathState == 0 || player->CurrentPowerup == 0 || player->Identity == 0)
+            everyPlayerDead = false;
+    }
+
+
+
+    if (everyPlayerDead)
+    {
+        SMBX_CameraInfo* camera1 = SMBX_CameraInfo::Get(1);
+        SMBX_CameraInfo* camera2 = SMBX_CameraInfo::Get(2);
+
+        if (camera2->visibleFlag != 0)
+        {
+            camera1->width = (double)gMainFramebufferWidth;
+            camera1->height = (double)gMainFramebufferHeight;
+            camera1->x = 0;
+            camera1->y = 0;
+            camera1->visibleFlag = -1;
+
+            camera2->visibleFlag = 0;
+        }
+
+        return;
+    }
+
+    setupSplitScreenType();
+}
+
+void __stdcall runtimeHookUpdateSplitScreen()
+{
+    __asm {
+        call runtimeHookUpdateSplitScreenInternal
+        ret
+    }
+}
+
 void __stdcall runtimeHookDrawBackground(short* section, short* camera)
 {
     if (gRenderBackgroundFlag)
