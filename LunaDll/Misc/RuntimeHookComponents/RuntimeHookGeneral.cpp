@@ -1573,6 +1573,10 @@ void TrySkipPatch()
     // Hook for onPlayerKill
     PATCH(0x9B66D0).JMP(runtimeHookPlayerKill).NOP_PAD_TO_SIZE<6>().Apply();
 
+    // Hooks that overwrites some camera functions to allow customisable screen sizes
+    PATCH(0x9502E0).JMP(runtimeHookSetupCameraSizes).Apply();
+    PATCH(0x950770).JMP(runtimeHookUpdateSplitScreen).Apply();
+
     // Hooks for populating world map
     PATCH(0x8E35E0).JMP(runtimeHookLoadWorldList).NOP_PAD_TO_SIZE<6>().Apply();
 

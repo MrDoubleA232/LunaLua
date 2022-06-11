@@ -409,6 +409,9 @@ DEFMEM(GM_LEVEL_EXIT_TYPE,  WORD,  0x00B2C5D4);      // 0 = didn't win, if highe
 DEFMEM(GM_PSWITCH_COUNTER,  WORD,  0x00B2C62C);
 DEFMEM(GM_PSWITCH_LENGTH,   WORD,  0x00B2C87C);
 
+DEFMEM(GM_CAMERA_TYPE,      WORD,  0x00B25130);
+DEFMEM(GM_SPLITSCREEN_TYPE, WORD,  0x00B25132);
+
 DEFMEM(GM_UNK_OV_DATABLOCK, short*,0x00B25164);     // Pointer to some kind of overworld data block involving locked character selection (not 100% sure)
 
 //Hitbox

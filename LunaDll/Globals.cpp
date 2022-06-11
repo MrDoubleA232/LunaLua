@@ -28,6 +28,8 @@ SMBXHUDSettings gSMBXHUDSettings = {
 bool gRenderBGOFlag = true;
 bool gRenderSizableFlag = true;
 bool gRenderBackgroundFlag = true;
+int gMainFramebufferWidth = 800;
+int gMainFramebufferHeight = 600;
 std::atomic<uint32_t> gMainWindowSize = 0; // Low word is width, height word is height
 
 // Settings for glitch fixes

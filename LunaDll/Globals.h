@@ -102,6 +102,8 @@ extern SMBXHUDSettings gSMBXHUDSettings;
 extern bool            gRenderBGOFlag;
 extern bool            gRenderSizableFlag;
 extern bool            gRenderBackgroundFlag;
+extern int             gMainFramebufferWidth;
+extern int             gMainFramebufferHeight;
 
 // Settings for glitch fixes
 extern bool            gDisablePlayerFilterBounceFix;

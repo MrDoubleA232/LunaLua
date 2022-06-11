@@ -321,8 +321,12 @@ void GLContextManager::ReleaseContext() {
 
 void GLContextManager::SetMainFramebufferSize(int width, int height)
 {
+    gMainFramebufferWidth = width;
+    gMainFramebufferHeight = height;
+
 	mMainFBWidth = width;
 	mMainFBHeight = height;
+
 	if (!mInitialized) return;
 
 	// Adjust screen projection

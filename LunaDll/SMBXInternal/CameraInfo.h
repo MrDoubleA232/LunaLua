@@ -11,14 +11,20 @@ public:
     double y;                       //+0x08
     double width;                   //+0x10
     double height;                  //+0x18
-    short unkIsSplitScreen;         //+0x20
+    short visibleFlag;              //+0x20
     short unknown22;                //+0x22
-    short unknown24;                //+0x24
-    short unknown26;                //+0x26
-    short unknown28;                //+0x28
-    short unknown2A;                //+0x2A
-    double diffYToOtherPlayer;      //+0x2C
-    unsigned int unknownCounter;    //+0x34
+    double offsetX;                 //+0x24
+    double offsetY;                 //+0x2C
+    unsigned int offsetDelay;       //+0x34
+
+    //short unkIsSplitScreen;         //+0x20
+    //short unknown22;                //+0x22
+    //short unknown24;                //+0x24
+    //short unknown26;                //+0x26
+    //short unknown28;                //+0x28
+    //short unknown2A;                //+0x2A
+    //double diffYToOtherPlayer;      //+0x2C
+    //unsigned int unknownCounter;    //+0x34
 
     static const int MAX_CAMERAINFO = 3;
 

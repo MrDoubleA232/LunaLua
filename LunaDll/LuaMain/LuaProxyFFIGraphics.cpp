@@ -5,6 +5,7 @@
 
 #include "../Globals.h"
 #include "../GlobalFuncs.h"
+#include "../Defines.h"
 #include "../Rendering/GL/GLContextManager.h"
 #include "../Rendering/Rendering.h"
 #include "../Rendering/RenderOps/RenderBitmapOp.h"
@@ -510,4 +511,6 @@ FFI_EXPORT const void FFI_GraphicsSetMainFramebufferSize(int width, int height)
 	obj->mHeight = height;
 
 	g_GLEngine.QueueCmd(obj);
+
+    native_initCamera(); // resize cameras
 }
