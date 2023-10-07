@@ -452,6 +452,23 @@ typedef struct ExtendedBlockFields_\
 } ExtendedBlockFields;";
     }
 
+    FFI_EXPORT(ExtendedPlayerFields*) LunaLuaGetPlayerExtendedFieldsArray()
+    {
+        return Player::GetExtended(0);
+    }
+
+    FFI_EXPORT(const char*) LunaLuaGetPlayerExtendedFieldsStruct()
+    {
+        return "\
+typedef struct ExtendedPlayerFields_\
+{\
+    bool noblockcollision;\
+    bool nonpcinteraction;\
+    bool noplayerinteraction;\
+    char collisionGroup[32];\
+} ExtendedPlayerFields;";
+    }
+
     FFI_EXPORT(int) LunaLuaGetCollisionGroupStringLength()
     {
         return 32;
